@@ -65,10 +65,36 @@ jobs:
         $GITHUB_WORKSPACE/$DIY_P1_SH
 
     - name: Update feeds
-      run: cd openwrt && ./scripts/feeds update -a
+      run: |
+        cd openwrt
+        # 确保 feeds.conf 包含 small feed
+        ###echo "src-git small https://github.com/kenzok8/small-package" >> feeds.conf
+        ###echo "src-git packages https://git.openwrt.org/feed/packages.git" >> feeds.conf
+        ./scripts/feeds update -a || { echo "软件源更新失败"; exit 1; }
+        # 删除 smpackage 中的指定包
+        rm -rf ./feeds/smpackage/{base-files,dnsmasq,firewall*,fullconenat,libnftnl,nftables,ppp,opkg,ucl,upx,vsftpd*,miniupnpd-iptables,wireless-regdb} || echo "smpackage 部分包不存在"
+        # 删除 luci 和 packages 中指定包
+        rm -rf ./package/feeds/luci/{luci-app-openclash,luci-app-passwall,luci-app-passwall2,luci-app-smartdns,luci-app-upnp}
+        rm -rf ./package/feeds/packages/smartdns
+        # 调试：检查 feeds/small 内容
+        ls -l feeds/small || { echo "feeds/small 目录不存在或为空"; exit 1; }
 
     - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+      run: |
+        cd openwrt
+        ./scripts/feeds install -a || { echo "软件源安装失败"; exit 1; }
+        # 安装特定依赖
+        ./scripts/feeds install libpam || echo "libpam 未找到"
+        ./scripts/feeds install libtirpc || echo "libtirpc 未找到"
+        ./scripts/feeds install libaio || echo "libaio 未找到"
+        # 确保目标目录存在
+        #mkdir -p ./package/feeds/small
+        # 创建软链接
+        ln -sf ./feeds/small/luci-app-passwall/ ./package/feeds/small || echo "luci-app-passwall 不存在"
+        ln -sf ./feeds/small/luci-app-passwall2/ ./package/feeds/small || echo "luci-app-passwall2 不存在"
+        ln -sf ./feeds/small/luci-app-openclash/ ./package/feeds/small || echo "luci-app-openclash 不存在"
+        ln -sf ./feeds/small/luci-app-smartdns/ ./package/feeds/small || echo "luci-app-smartdns 不存在"
+        ln -sf ./feeds/small/smartdns/ ./package/feeds/small || echo "smartdns 不存在"
 
     - name: Load custom configuration
       run: |
